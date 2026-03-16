@@ -97,7 +97,7 @@ async function fetchIsbn13ByTitle(title, apiKey) {
         output: 'js',
         Version: '20131101',
       },
-      timeout: 8000,
+      timeout: 5000,
     });
     const data = res.data;
     if (data && data.item && data.item.length > 0) {
@@ -111,17 +111,39 @@ async function fetchIsbn13ByTitle(title, apiKey) {
 }
 
 async function enrichWithIsbn13(books, apiKey, progressCallback) {
+  const CONCURRENCY = 10;
   let enriched = 0;
-  for (let i = 0; i < books.length; i++) {
-    if (!books[i].isbn13 && books[i].title) {
-      const isbn13 = await fetchIsbn13ByTitle(books[i].title, apiKey);
-      if (isbn13) {
-        books[i].isbn13 = isbn13;
-        enriched++;
-      }
+  let completed = 0;
+
+  const targets = books
+    .map((book, idx) => ({ book, idx }))
+    .filter(({ book }) => !book.isbn13 && book.title);
+
+  const total = books.length;
+
+  // Run tasks with a fixed concurrency pool
+  async function runPool(tasks, concurrency, worker) {
+    let i = 0;
+    async function next() {
+      if (i >= tasks.length) return;
+      const task = tasks[i++];
+      await worker(task);
+      await next();
     }
-    if (progressCallback) progressCallback(i + 1, books.length, enriched);
+    await Promise.all(Array.from({ length: concurrency }, next));
   }
+
+  await runPool(targets, CONCURRENCY, async ({ book, idx }) => {
+    const isbn13 = await fetchIsbn13ByTitle(book.title, apiKey);
+    if (isbn13) {
+      books[idx].isbn13 = isbn13;
+      enriched++;
+    }
+    completed++;
+    if (progressCallback) progressCallback(completed, targets.length, enriched);
+  });
+
+  if (progressCallback) progressCallback(total, total, enriched);
   return enriched;
 }
 
@@ -257,7 +279,7 @@ app.post('/api/compare', async (req, res) => {
 
     // Enrich purchase list if needed
     if (purchaseMissing > 0 && apiKey) {
-      send('progress', { step: 'enrich_purchase', message: `구입 예정 목록 ISBN13 조회 중... (${purchaseMissing}건)`, current: 0, total: purchaseMissing });
+      send('progress', { step: 'enrich_purchase', message: `구입 예정 목록 ISBN13 조회 중... (${purchaseMissing}건, 동시 10건)`, current: 0, total: purchaseMissing });
       await enrichWithIsbn13(purchaseBooks, apiKey, (current, total, enriched) => {
         send('progress', { step: 'enrich_purchase', message: `구입 예정 목록 ISBN13 조회 중...`, current, total, enriched });
       });
@@ -265,7 +287,7 @@ app.post('/api/compare', async (req, res) => {
 
     // Enrich library list if needed
     if (libraryMissing > 0 && apiKey) {
-      send('progress', { step: 'enrich_library', message: `소장 목록 ISBN13 조회 중... (${libraryMissing}건)`, current: 0, total: libraryMissing });
+      send('progress', { step: 'enrich_library', message: `소장 목록 ISBN13 조회 중... (${libraryMissing}건, 동시 10건)`, current: 0, total: libraryMissing });
       await enrichWithIsbn13(libraryBooks, apiKey, (current, total, enriched) => {
         send('progress', { step: 'enrich_library', message: `소장 목록 ISBN13 조회 중...`, current, total, enriched });
       });
