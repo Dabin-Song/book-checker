@@ -7,23 +7,27 @@ const state = {
 };
 
 const $ = id => document.getElementById(id);
-const compareBtn  = $('compareBtn');
-const apiKeyInput = $('apiKey');
+const compareBtn = $('compareBtn');
 
-// ── API Key ───────────────────────────────────────────────────────────────────
+// ── API Status indicator ──────────────────────────────────────────────────────
 (async () => {
+  const el   = $('apiStatus');
+  const dot  = $('apiStatusDot');
+  const text = $('apiStatusText');
   try {
     const { hasServerKey } = await (await fetch('/api/config')).json();
     if (hasServerKey) {
-      $('apiKeyServerSet').classList.remove('hidden');
-      $('apiKeyInputWrap').classList.add('hidden');
+      el.classList.add('ok');
+      text.textContent = '알라딘 API 연동됨';
+    } else {
+      el.classList.add('fail');
+      text.textContent = '알라딘 API 미설정';
     }
-  } catch (_) {}
+  } catch (_) {
+    el.classList.add('fail');
+    text.textContent = '서버 연결 오류';
+  }
 })();
-
-$('toggleApiKey').addEventListener('click', () => {
-  apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
-});
 
 // ── File Upload ───────────────────────────────────────────────────────────────
 function setupDropZone(dropZoneId, inputId, type) {
@@ -113,7 +117,7 @@ async function startCompare() {
     const res = await fetch('/api/compare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: apiKeyInput.value.trim() }),
+      body: JSON.stringify({}),
     });
     if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
 

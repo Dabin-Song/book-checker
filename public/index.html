@@ -13,19 +13,6 @@
       <p class="subtitle">구입 예정 도서와 소장 도서를 비교해 중복 여부를 확인합니다</p>
     </header>
 
-    <!-- API Key -->
-    <section class="card api-section">
-      <h2>알라딘 API 설정</h2>
-      <p class="hint">ISBN13이 없는 도서를 알라딘 API로 자동 조회합니다. (<a href="https://www.aladin.co.kr/ttb/wbloglist.aspx" target="_blank">API 키 발급</a>)</p>
-      <div id="apiKeyServerSet" class="hidden">
-        <span class="server-key-badge">🔑 API 키가 서버에 설정되어 있습니다</span>
-      </div>
-      <div id="apiKeyInputWrap" class="input-row">
-        <input type="password" id="apiKey" placeholder="알라딘 TTBKey 입력 (선택사항)" />
-        <button id="toggleApiKey" class="btn-icon" title="표시/숨김">👁</button>
-      </div>
-    </section>
-
     <!-- Upload -->
     <section class="upload-grid">
       <div class="card upload-card">
@@ -143,6 +130,12 @@
         <a class="btn-dl btn-dl-library hidden" id="dlLibrary" href="/api/download/enriched/library">📥 소장 목록 (ISBN13 보완)</a>
       </div>
     </section>
+  </div>
+
+  <!-- API status badge (bottom-right) -->
+  <div id="apiStatus" class="api-status">
+    <span id="apiStatusDot" class="api-status-dot"></span>
+    <span id="apiStatusText"></span>
   </div>
 
   <script src="script.js"></script>
