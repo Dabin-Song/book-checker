@@ -296,6 +296,8 @@ app.post('/api/compare', async (req, res) => {
       await enrichWithIsbn13(libraryBooks, apiKey, (current, total, enriched) => {
         send('progress', { step: 'enrich_library', message: `소장 목록 ISBN13 조회 중...`, current, total, enriched });
       });
+      // Save enriched library books so they can be downloaded
+      uploadedData.library.enrichedBooks = libraryBooks;
     }
 
     send('progress', { step: 'comparing', message: '중복 검사 중...' });
@@ -309,16 +311,20 @@ app.post('/api/compare', async (req, res) => {
       publisher: b.publisher,
     });
 
+    // Store last results for download
+    uploadedData._lastResults = duplicates.map(d => ({
+      purchase: serializeBook(d.purchase),
+      library: serializeBook(d.library),
+      matchMethod: d.matchMethod,
+    }));
+
     send('result', {
-      duplicates: duplicates.map(d => ({
-        purchase: serializeBook(d.purchase),
-        library: serializeBook(d.library),
-        matchMethod: d.matchMethod,
-      })),
+      duplicates: uploadedData._lastResults,
       purchaseCount: purchaseBooks.length,
       libraryCount: libraryBooks.length,
       purchaseEnriched: purchaseMissing,
       libraryEnriched: libraryMissing,
+      hasEnrichedLibrary: libraryMissing > 0 && !!apiKey,
     });
   } catch (err) {
     console.error('Compare error:', err);
@@ -328,21 +334,24 @@ app.post('/api/compare', async (req, res) => {
   res.end();
 });
 
-// Download enriched Excel
-app.post('/api/download-enriched', async (req, res) => {
-  const { type } = req.body;
-  if (!uploadedData[type]) {
-    return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+// Download enriched library Excel (ISBN13 보완된 소장 목록)
+app.get('/api/download-enriched', async (req, res) => {
+  const data = uploadedData.library;
+  if (!data) {
+    return res.status(400).json({ error: '소장 목록 파일이 업로드되지 않았습니다.' });
   }
 
-  const { books, headers } = uploadedData[type];
+  const books = data.enrichedBooks || data.books;
+  const { headers } = data;
+
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Sheet1');
+  const sheet = workbook.addWorksheet('소장목록');
 
-  // Add headers
-  sheet.addRow(headers);
+  // Header row with bold style
+  const headerRow = sheet.addRow(headers);
+  headerRow.font = { bold: true };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
 
-  // Add rows with updated ISBN13
   for (const book of books) {
     const row = { ...book._raw };
     if (book._isbn13Key && book.isbn13) {
@@ -351,8 +360,47 @@ app.post('/api/download-enriched', async (req, res) => {
     sheet.addRow(headers.map(h => row[h] ?? ''));
   }
 
+  sheet.columns.forEach(col => { col.width = 20; });
+
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="enriched_${type}.xlsx"`);
+  res.setHeader('Content-Disposition', 'attachment; filename*=UTF-8\'\'%EC%86%8C%EC%9E%A5%EB%AA%A9%EB%A1%9D_ISBN13%EB%B3%B4%EC%99%84.xlsx');
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+// Download duplicate results Excel
+app.get('/api/download-results', async (req, res) => {
+  if (!uploadedData._lastResults) {
+    return res.status(400).json({ error: '먼저 중복 검사를 실행해주세요.' });
+  }
+
+  const duplicates = uploadedData._lastResults;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('중복목록');
+
+  const headerRow = sheet.addRow(['No.', 'ISBN13', '구입예정 도서명', '구입예정 출판사', '소장 도서명', '소장 출판사', '대조 기준']);
+  headerRow.font = { bold: true };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4D6' } };
+
+  duplicates.forEach((d, i) => {
+    sheet.addRow([
+      i + 1,
+      d.purchase.isbn13 || d.library.isbn13 || '',
+      d.purchase.title || '',
+      d.purchase.publisher || '',
+      d.library.title || '',
+      d.library.publisher || '',
+      d.matchMethod,
+    ]);
+  });
+
+  sheet.columns = [
+    { width: 6 }, { width: 16 }, { width: 36 }, { width: 18 },
+    { width: 36 }, { width: 18 }, { width: 14 },
+  ];
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename*=UTF-8\'\'%EC%A4%91%EB%B3%B5%EA%B2%80%EC%82%AC_%EA%B2%B0%EA%B3%BC.xlsx');
   await workbook.xlsx.write(res);
   res.end();
 });

@@ -323,5 +323,29 @@ td.method span {
 }
 .no-dup-icon { font-size: 3rem; margin-bottom: 0.5rem; }
 
+/* ── Download Bar ───────────────────────────────────────────────── */
+.download-bar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #edf2f7;
+}
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: filter .15s, transform .1s;
+}
+.btn-download:hover { filter: brightness(0.93); transform: translateY(-1px); }
+.btn-download-results { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+.btn-download-enriched { background: #f0fff4; color: #276749; border: 1px solid #c6f6d5; }
+
 /* ── Utility ────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
