@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>도서 중복 검사기</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📚 도서 중복 검사기</h1>
+      <p class="subtitle">구입 예정 도서와 소장 도서를 비교해 중복 여부를 확인합니다</p>
+    </header>
+
+    <!-- API Key Section -->
+    <section class="card api-section">
+      <h2>알라딘 API 설정</h2>
+      <p class="hint">ISBN13 데이터가 없는 도서가 있을 경우 알라딘 API를 통해 자동으로 조회합니다. (<a href="https://www.aladin.co.kr/ttb/wbloglist.aspx" target="_blank">API 키 발급</a>)</p>
+      <div class="input-row">
+        <input type="text" id="apiKey" placeholder="알라딘 TTBKey 입력 (선택사항)" />
+        <button id="toggleApiKey" class="btn-icon" title="표시/숨김">👁</button>
+      </div>
+    </section>
+
+    <!-- Upload Section -->
+    <section class="upload-grid">
+      <!-- Purchase List -->
+      <div class="card upload-card" id="purchaseCard">
+        <div class="card-header">
+          <span class="badge badge-blue">구입 예정</span>
+          <h2>구입 예정 도서 목록</h2>
+        </div>
+        <div class="drop-zone" id="purchaseDropZone" data-type="purchase">
+          <div class="drop-icon">📄</div>
+          <p>엑셀 파일을 여기에 드래그하거나</p>
+          <label class="btn-upload" for="purchaseFile">파일 선택</label>
+          <input type="file" id="purchaseFile" accept=".xlsx,.xls" hidden />
+          <p class="hint">.xlsx, .xls 파일 지원</p>
+        </div>
+        <div class="file-info hidden" id="purchaseInfo">
+          <div class="file-name" id="purchaseFileName"></div>
+          <div class="stats">
+            <div class="stat">
+              <span class="stat-label">전체 도서</span>
+              <span class="stat-value" id="purchaseCount">0</span>
+              <span class="stat-unit">권</span>
+            </div>
+            <div class="stat stat-warn" id="purchaseMissingWrap">
+              <span class="stat-label">ISBN13 없음</span>
+              <span class="stat-value" id="purchaseMissing">0</span>
+              <span class="stat-unit">권</span>
+            </div>
+          </div>
+          <div class="column-detect" id="purchaseColumns"></div>
+          <button class="btn-secondary btn-sm" id="purchaseRemove">파일 제거</button>
+        </div>
+      </div>
+
+      <!-- Library Collection -->
+      <div class="card upload-card" id="libraryCard">
+        <div class="card-header">
+          <span class="badge badge-green">소장 도서</span>
+          <h2>도서관 소장 도서 목록</h2>
+        </div>
+        <div class="drop-zone" id="libraryDropZone" data-type="library">
+          <div class="drop-icon">📚</div>
+          <p>엑셀 파일을 여기에 드래그하거나</p>
+          <label class="btn-upload" for="libraryFile">파일 선택</label>
+          <input type="file" id="libraryFile" accept=".xlsx,.xls" hidden />
+          <p class="hint">.xlsx, .xls 파일 지원</p>
+        </div>
+        <div class="file-info hidden" id="libraryInfo">
+          <div class="file-name" id="libraryFileName"></div>
+          <div class="stats">
+            <div class="stat">
+              <span class="stat-label">전체 도서</span>
+              <span class="stat-value" id="libraryCount">0</span>
+              <span class="stat-unit">권</span>
+            </div>
+            <div class="stat stat-warn" id="libraryMissingWrap">
+              <span class="stat-label">ISBN13 없음</span>
+              <span class="stat-value" id="libraryMissing">0</span>
+              <span class="stat-unit">권</span>
+            </div>
+          </div>
+          <div class="column-detect" id="libraryColumns"></div>
+          <button class="btn-secondary btn-sm" id="libraryRemove">파일 제거</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compare Button -->
+    <div class="compare-wrap">
+      <button class="btn-primary btn-compare" id="compareBtn" disabled>
+        <span class="btn-icon-left">🔍</span> 중복 검사 시작
+      </button>
+    </div>
+
+    <!-- Progress -->
+    <div class="card progress-card hidden" id="progressCard">
+      <h3>진행 상황</h3>
+      <div id="progressSteps"></div>
+    </div>
+
+    <!-- Results -->
+    <section class="card results-card hidden" id="resultsCard">
+      <div class="results-header">
+        <h2>검사 결과</h2>
+        <div class="results-summary" id="resultsSummary"></div>
+      </div>
+
+      <!-- Match method breakdown -->
+      <div class="match-breakdown" id="matchBreakdown"></div>
+
+      <!-- Duplicates Table -->
+      <div id="duplicatesSection">
+        <div class="table-toolbar">
+          <input type="text" id="searchFilter" placeholder="도서명, ISBN13, 출판사로 검색..." class="search-input" />
+          <div class="filter-chips" id="filterChips"></div>
+        </div>
+        <div class="table-wrap">
+          <table id="duplicatesTable">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>ISBN13</th>
+                <th>구입 예정 도서명</th>
+                <th>출판사</th>
+                <th>소장 도서명</th>
+                <th>소장 출판사</th>
+                <th>대조 기준</th>
+              </tr>
+            </thead>
+            <tbody id="duplicatesBody"></tbody>
+          </table>
+        </div>
+        <p class="no-results hidden" id="noResults">검색 결과가 없습니다.</p>
+      </div>
+
+      <!-- No duplicates -->
+      <div class="no-duplicate hidden" id="noDuplicateMsg">
+        <div class="no-dup-icon">✅</div>
+        <p>중복된 도서가 없습니다!</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
