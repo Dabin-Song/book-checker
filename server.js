@@ -85,9 +85,17 @@ function parseExcel(filePath) {
 }
 
 // ─── Aladin API ───────────────────────────────────────────────────────────────
+function getServiceUrl() {
+  return process.env.ALADIN_SERVICE_URL      // 수동 설정 우선
+      || process.env.RENDER_EXTERNAL_URL     // Render 자동 주입
+      || `http://localhost:${process.env.PORT || 3000}`;
+}
+
 async function callAladin(params, apiKey) {
+  const referer = getServiceUrl();
   const res = await axios.get('http://www.aladin.co.kr/ttb/api/ItemSearch.aspx', {
     params: { ttbkey: apiKey, ...params, output: 'js', Version: '20131101' },
+    headers: { Referer: referer },
     timeout: 5000,
     httpAgent,
   });
