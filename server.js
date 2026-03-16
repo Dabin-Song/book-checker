@@ -308,6 +308,13 @@ app.post('/api/compare', async (req, res) => {
       nonDuplicates: nonDuplicates.map(d => ({ purchase: slim(d.purchase) })),
     };
 
+    // Store last results for download
+    uploadedData._lastResults = duplicates.map(d => ({
+      purchase: serializeBook(d.purchase),
+      library: serializeBook(d.library),
+      matchMethod: d.matchMethod,
+    }));
+
     send('result', {
       ...store._lastResults,
       purchaseCount:    purchaseBooks.length,
