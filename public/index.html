@@ -17,7 +17,14 @@
     <section class="card api-section">
       <h2>알라딘 API 설정</h2>
       <p class="hint">ISBN13 데이터가 없는 도서가 있을 경우 알라딘 API를 통해 자동으로 조회합니다. (<a href="https://www.aladin.co.kr/ttb/wbloglist.aspx" target="_blank">API 키 발급</a>)</p>
-      <div class="input-row">
+
+      <!-- 서버에 키가 설정된 경우 -->
+      <div id="apiKeyServerSet" class="hidden">
+        <span class="server-key-badge">🔑 API 키가 서버에 설정되어 있습니다</span>
+      </div>
+
+      <!-- 서버에 키가 없는 경우 직접 입력 -->
+      <div id="apiKeyInputWrap" class="input-row">
         <input type="text" id="apiKey" placeholder="알라딘 TTBKey 입력 (선택사항)" />
         <button id="toggleApiKey" class="btn-icon" title="표시/숨김">👁</button>
       </div>
