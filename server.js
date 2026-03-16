@@ -40,14 +40,27 @@ function findColumn(obj, candidates) {
   return null;
 }
 
+function parseIsbn13(val) {
+  if (!val && val !== 0) return '';
+  const s = String(val).trim();
+  // 직접 13자리 숫자 (하이픈·공백 제거 후)
+  const stripped = s.replace(/[\s\-]/g, '');
+  if (/^\d{13}$/.test(stripped)) return stripped;
+  // 978/979 로 시작하는 13자리 패턴 추출 (예: "ISBN 978-89-XXX")
+  const m = s.match(/97[89][\d\s\-]{10,16}/);
+  if (m) {
+    const candidate = m[0].replace(/[\s\-]/g, '');
+    if (/^\d{13}$/.test(candidate)) return candidate;
+  }
+  return '';
+}
+
 function extractFields(row) {
   const isbn13Key    = findColumn(row, ISBN13_KEYS);
   const titleKey     = findColumn(row, TITLE_KEYS);
   const publisherKey = findColumn(row, PUBLISHER_KEYS);
 
-  let isbn13 = isbn13Key ? String(row[isbn13Key]).trim() : '';
-  isbn13 = isbn13.replace(/[-\s]/g, '');
-  if (isbn13.length !== 13 || !/^\d+$/.test(isbn13)) isbn13 = '';
+  const isbn13 = isbn13Key ? parseIsbn13(row[isbn13Key]) : '';
 
   return {
     isbn13,
@@ -170,8 +183,12 @@ const HEADER_FONT  = { bold: true };
 async function buildEnrichedWorkbook(type) {
   const d = store[type];
   if (!d) return null;
-  const books   = d.enrichedBooks || d.books;
-  const headers = d.headers;
+  const books = d.enrichedBooks || d.books;
+
+  // isbn13 칼럼이 원본 파일에 없으면 첫 번째 칼럼으로 추가
+  const isbn13ColKey = books[0]?._isbn13Key || null;
+  const hasIsbn13Col = !!isbn13ColKey;
+  const headers = hasIsbn13Col ? d.headers : ['ISBN13', ...d.headers];
 
   const wb    = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet(type === 'purchase' ? '구입예정목록' : '소장목록');
@@ -180,9 +197,19 @@ async function buildEnrichedWorkbook(type) {
   hr.fill = HEADER_FILL('FFE2EFDA');
 
   for (const book of books) {
-    const row = { ...book._raw };
-    if (book._isbn13Key && book.isbn13) row[book._isbn13Key] = book.isbn13;
-    sheet.addRow(headers.map(h => row[h] ?? ''));
+    let values;
+    if (hasIsbn13Col) {
+      // 원본에 isbn13 칼럼 있음 → 해당 칼럼에 보강값 덮어쓰기
+      const row = { ...book._raw, [isbn13ColKey]: book.isbn13 || '' };
+      values = d.headers.map(h => row[h] !== undefined ? row[h] : '');
+    } else {
+      // 원본에 isbn13 칼럼 없음 → 첫 칼럼에 isbn13 삽입
+      const rawValues = d.headers.map(h =>
+        book._raw[h] !== undefined ? book._raw[h] : ''
+      );
+      values = [book.isbn13 || '', ...rawValues];
+    }
+    sheet.addRow(values);
   }
   sheet.columns.forEach(c => { c.width = 22; });
   return wb;
