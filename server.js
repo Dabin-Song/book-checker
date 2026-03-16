@@ -3,8 +3,12 @@ const multer = require('multer');
 const ExcelJS = require('exceljs');
 const XLSX = require('xlsx');
 const axios = require('axios');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
+
+// Reuse TCP connections across Aladin API requests
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 15 });
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -98,6 +102,7 @@ async function fetchIsbn13ByTitle(title, apiKey) {
         Version: '20131101',
       },
       timeout: 5000,
+      httpAgent,
     });
     const data = res.data;
     if (data && data.item && data.item.length > 0) {
