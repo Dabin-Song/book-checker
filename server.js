@@ -85,21 +85,27 @@ function parseExcel(filePath) {
 }
 
 // ─── Aladin API ───────────────────────────────────────────────────────────────
+async function callAladin(params, apiKey) {
+  const res = await axios.get('http://www.aladin.co.kr/ttb/api/ItemSearch.aspx', {
+    params: { ttbkey: apiKey, ...params, output: 'js', Version: '20131101' },
+    timeout: 5000,
+    httpAgent,
+  });
+  return res.data;
+}
+
 async function fetchIsbn13ByTitle(title, apiKey) {
   try {
-    const res = await axios.get('http://www.aladin.co.kr/ttb/api/ItemSearch.aspx', {
-      params: {
-        ttbkey: apiKey, Query: title, QueryType: 'Title',
-        MaxResults: 1, start: 1, SearchTarget: 'Book',
-        output: 'js', Version: '20131101',
-      },
-      timeout: 5000,
-      httpAgent,
-    });
-    const item = res.data?.item?.[0];
-    if (item?.isbn13) return String(item.isbn13).replace(/[-\s]/g, '');
-  } catch (_) { /* ignore */ }
-  return '';
+    const data = await callAladin(
+      { Query: title, QueryType: 'Title', MaxResults: 1, start: 1, SearchTarget: 'Book' },
+      apiKey,
+    );
+    const item = data?.item?.[0];
+    if (item?.isbn13) return { isbn13: String(item.isbn13).replace(/[-\s]/g, ''), error: null };
+  } catch (e) {
+    return { isbn13: '', error: e.response?.status || e.message };
+  }
+  return { isbn13: '', error: null };
 }
 
 async function enrichBooks(books, apiKey, onProgress) {
@@ -108,7 +114,7 @@ async function enrichBooks(books, apiKey, onProgress) {
     .map((b, idx) => ({ b, idx }))
     .filter(({ b }) => !b.isbn13 && b.title);
 
-  let done = 0, enriched = 0;
+  let done = 0, enriched = 0, failed = 0, lastError = null;
 
   async function runPool(tasks, concurrency, worker) {
     let i = 0;
@@ -122,13 +128,14 @@ async function enrichBooks(books, apiKey, onProgress) {
   }
 
   await runPool(targets, CONCURRENCY, async ({ b, idx }) => {
-    const isbn13 = await fetchIsbn13ByTitle(b.title, apiKey);
+    const { isbn13, error } = await fetchIsbn13ByTitle(b.title, apiKey);
     if (isbn13) { books[idx].isbn13 = isbn13; enriched++; }
+    if (error)  { failed++; lastError = error; }
     done++;
-    onProgress?.(done, targets.length, enriched);
+    onProgress?.(done, targets.length, enriched, failed, lastError);
   });
 
-  return { total: targets.length, enriched };
+  return { total: targets.length, enriched, failed, lastError };
 }
 
 // ─── Duplicate detection ──────────────────────────────────────────────────────
@@ -284,6 +291,22 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// API 연결 테스트
+app.get('/api/test-aladin', async (req, res) => {
+  const apiKey = process.env.ALADIN_API_KEY || '';
+  if (!apiKey) return res.json({ ok: false, error: 'API 키가 설정되지 않았습니다' });
+  try {
+    const data = await callAladin(
+      { Query: '채식주의자', QueryType: 'Title', MaxResults: 1, start: 1, SearchTarget: 'Book' },
+      apiKey,
+    );
+    const item = data?.item?.[0];
+    res.json({ ok: !!item, isbn13: item?.isbn13 || null, title: item?.title || null });
+  } catch (e) {
+    res.json({ ok: false, error: `${e.response?.status || ''} ${e.message}`.trim() });
+  }
+});
+
 // SSE: enrich → compare
 app.post('/api/compare', async (req, res) => {
   if (!store.purchase || !store.library)
@@ -309,19 +332,24 @@ app.post('/api/compare', async (req, res) => {
     // ── Step 1: 구입 예정 목록 ISBN13 보강 ──────────────────────────────
     if (pMissing > 0 && apiKey) {
       send('progress', { step: 'enrich_purchase', message: `구입 예정 목록 ISBN13 조회 중... (${pMissing}건)`, current: 0, total: pMissing });
-      await enrichBooks(purchaseBooks, apiKey, (cur, tot, enriched) =>
-        send('progress', { step: 'enrich_purchase', message: '구입 예정 목록 ISBN13 조회 중...', current: cur, total: tot, enriched })
+      const pr = await enrichBooks(purchaseBooks, apiKey, (cur, tot, enriched, failed, lastError) =>
+        send('progress', { step: 'enrich_purchase', message: '구입 예정 목록 ISBN13 조회 중...', current: cur, total: tot, enriched, failed, lastError })
       );
+      if (pr.failed > 0) console.error(`[enrich_purchase] ${pr.failed}건 실패, 마지막 오류: ${pr.lastError}`);
+    } else if (pMissing > 0 && !apiKey) {
+      send('progress', { step: 'enrich_purchase', message: 'API 키 없음 — ISBN13 조회 건너뜀', current: 0, total: 0 });
     }
-    // enriched 결과를 store 에 저장 (다운로드용)
     store.purchase.enrichedBooks = purchaseBooks;
 
     // ── Step 2: 소장 목록 ISBN13 보강 ───────────────────────────────────
     if (lMissing > 0 && apiKey) {
       send('progress', { step: 'enrich_library', message: `소장 목록 ISBN13 조회 중... (${lMissing}건)`, current: 0, total: lMissing });
-      await enrichBooks(libraryBooks, apiKey, (cur, tot, enriched) =>
-        send('progress', { step: 'enrich_library', message: '소장 목록 ISBN13 조회 중...', current: cur, total: tot, enriched })
+      const lr = await enrichBooks(libraryBooks, apiKey, (cur, tot, enriched, failed, lastError) =>
+        send('progress', { step: 'enrich_library', message: '소장 목록 ISBN13 조회 중...', current: cur, total: tot, enriched, failed, lastError })
       );
+      if (lr.failed > 0) console.error(`[enrich_library] ${lr.failed}건 실패, 마지막 오류: ${lr.lastError}`);
+    } else if (lMissing > 0 && !apiKey) {
+      send('progress', { step: 'enrich_library', message: 'API 키 없음 — ISBN13 조회 건너뜀', current: 0, total: 0 });
     }
     store.library.enrichedBooks = libraryBooks;
 
