@@ -257,6 +257,14 @@ function showResults(data) {
     renderTable(duplicates);
   }
 
+  // Download buttons
+  $('downloadBar').classList.remove('hidden');
+  if (data.hasEnrichedLibrary) {
+    $('btnDownloadEnriched').classList.remove('hidden');
+  } else {
+    $('btnDownloadEnriched').classList.add('hidden');
+  }
+
   // Scroll to results
   resultsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
