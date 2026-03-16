@@ -13,32 +13,14 @@
       <p class="subtitle">구입 예정 도서와 소장 도서를 비교해 중복 여부를 확인합니다</p>
     </header>
 
-    <!-- API Key Section -->
-    <section class="card api-section">
-      <h2>알라딘 API 설정</h2>
-      <p class="hint">ISBN13 데이터가 없는 도서가 있을 경우 알라딘 API를 통해 자동으로 조회합니다. (<a href="https://www.aladin.co.kr/ttb/wbloglist.aspx" target="_blank">API 키 발급</a>)</p>
-
-      <!-- 서버에 키가 설정된 경우 -->
-      <div id="apiKeyServerSet" class="hidden">
-        <span class="server-key-badge">🔑 API 키가 서버에 설정되어 있습니다</span>
-      </div>
-
-      <!-- 서버에 키가 없는 경우 직접 입력 -->
-      <div id="apiKeyInputWrap" class="input-row">
-        <input type="text" id="apiKey" placeholder="알라딘 TTBKey 입력 (선택사항)" />
-        <button id="toggleApiKey" class="btn-icon" title="표시/숨김">👁</button>
-      </div>
-    </section>
-
-    <!-- Upload Section -->
+    <!-- Upload -->
     <section class="upload-grid">
-      <!-- Purchase List -->
-      <div class="card upload-card" id="purchaseCard">
+      <div class="card upload-card">
         <div class="card-header">
           <span class="badge badge-blue">구입 예정</span>
           <h2>구입 예정 도서 목록</h2>
         </div>
-        <div class="drop-zone" id="purchaseDropZone" data-type="purchase">
+        <div class="drop-zone" id="purchaseDropZone">
           <div class="drop-icon">📄</div>
           <p>엑셀 파일을 여기에 드래그하거나</p>
           <label class="btn-upload" for="purchaseFile">파일 선택</label>
@@ -48,29 +30,20 @@
         <div class="file-info hidden" id="purchaseInfo">
           <div class="file-name" id="purchaseFileName"></div>
           <div class="stats">
-            <div class="stat">
-              <span class="stat-label">전체 도서</span>
-              <span class="stat-value" id="purchaseCount">0</span>
-              <span class="stat-unit">권</span>
-            </div>
-            <div class="stat stat-warn" id="purchaseMissingWrap">
-              <span class="stat-label">ISBN13 없음</span>
-              <span class="stat-value" id="purchaseMissing">0</span>
-              <span class="stat-unit">권</span>
-            </div>
+            <div class="stat"><span class="stat-label">전체</span><span class="stat-value" id="purchaseCount">0</span><span class="stat-unit">권</span></div>
+            <div class="stat stat-warn" id="purchaseMissingWrap"><span class="stat-label">ISBN13 없음</span><span class="stat-value" id="purchaseMissing">0</span><span class="stat-unit">권</span></div>
           </div>
           <div class="column-detect" id="purchaseColumns"></div>
           <button class="btn-secondary btn-sm" id="purchaseRemove">파일 제거</button>
         </div>
       </div>
 
-      <!-- Library Collection -->
-      <div class="card upload-card" id="libraryCard">
+      <div class="card upload-card">
         <div class="card-header">
           <span class="badge badge-green">소장 도서</span>
           <h2>도서관 소장 도서 목록</h2>
         </div>
-        <div class="drop-zone" id="libraryDropZone" data-type="library">
+        <div class="drop-zone" id="libraryDropZone">
           <div class="drop-icon">📚</div>
           <p>엑셀 파일을 여기에 드래그하거나</p>
           <label class="btn-upload" for="libraryFile">파일 선택</label>
@@ -80,16 +53,8 @@
         <div class="file-info hidden" id="libraryInfo">
           <div class="file-name" id="libraryFileName"></div>
           <div class="stats">
-            <div class="stat">
-              <span class="stat-label">전체 도서</span>
-              <span class="stat-value" id="libraryCount">0</span>
-              <span class="stat-unit">권</span>
-            </div>
-            <div class="stat stat-warn" id="libraryMissingWrap">
-              <span class="stat-label">ISBN13 없음</span>
-              <span class="stat-value" id="libraryMissing">0</span>
-              <span class="stat-unit">권</span>
-            </div>
+            <div class="stat"><span class="stat-label">전체</span><span class="stat-value" id="libraryCount">0</span><span class="stat-unit">권</span></div>
+            <div class="stat stat-warn" id="libraryMissingWrap"><span class="stat-label">ISBN13 없음</span><span class="stat-value" id="libraryMissing">0</span><span class="stat-unit">권</span></div>
           </div>
           <div class="column-detect" id="libraryColumns"></div>
           <button class="btn-secondary btn-sm" id="libraryRemove">파일 제거</button>
@@ -97,10 +62,10 @@
       </div>
     </section>
 
-    <!-- Compare Button -->
+    <!-- Compare button -->
     <div class="compare-wrap">
       <button class="btn-primary btn-compare" id="compareBtn" disabled>
-        <span class="btn-icon-left">🔍</span> 중복 검사 시작
+        🔍 중복 검사 시작
       </button>
     </div>
 
@@ -117,50 +82,60 @@
         <div class="results-summary" id="resultsSummary"></div>
       </div>
 
-      <!-- Match method breakdown -->
-      <div class="match-breakdown" id="matchBreakdown"></div>
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" id="tabDuplicate" data-tab="duplicate">중복 목록</button>
+        <button class="tab" id="tabAvailable" data-tab="available">구입 가능 목록</button>
+      </div>
 
-      <!-- Duplicates Table -->
-      <div id="duplicatesSection">
+      <!-- Duplicate panel -->
+      <div class="tab-panel" id="panelDuplicate">
+        <div class="match-breakdown" id="matchBreakdown"></div>
         <div class="table-toolbar">
-          <input type="text" id="searchFilter" placeholder="도서명, ISBN13, 출판사로 검색..." class="search-input" />
-          <div class="filter-chips" id="filterChips"></div>
+          <input type="text" id="dupSearch" placeholder="도서명·ISBN13·출판사 검색..." class="search-input" />
         </div>
         <div class="table-wrap">
-          <table id="duplicatesTable">
-            <thead>
-              <tr>
-                <th>No.</th>
-                <th>ISBN13</th>
-                <th>구입 예정 도서명</th>
-                <th>출판사</th>
-                <th>소장 도서명</th>
-                <th>소장 출판사</th>
-                <th>대조 기준</th>
-              </tr>
-            </thead>
-            <tbody id="duplicatesBody"></tbody>
+          <table>
+            <thead><tr>
+              <th>No.</th><th>ISBN13</th><th>구입 예정 도서명</th><th>출판사</th>
+              <th>소장 도서명</th><th>소장 출판사</th><th>대조 기준</th>
+            </tr></thead>
+            <tbody id="dupBody"></tbody>
           </table>
         </div>
-        <p class="no-results hidden" id="noResults">검색 결과가 없습니다.</p>
+        <p class="no-results hidden" id="dupNoResults">해당하는 도서가 없습니다.</p>
       </div>
 
-      <!-- No duplicates -->
-      <div class="no-duplicate hidden" id="noDuplicateMsg">
-        <div class="no-dup-icon">✅</div>
-        <p>중복된 도서가 없습니다!</p>
+      <!-- Available panel -->
+      <div class="tab-panel hidden" id="panelAvailable">
+        <div class="table-toolbar">
+          <input type="text" id="avSearch" placeholder="도서명·ISBN13·출판사 검색..." class="search-input" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>No.</th><th>ISBN13</th><th>도서명</th><th>출판사</th>
+            </tr></thead>
+            <tbody id="avBody"></tbody>
+          </table>
+        </div>
+        <p class="no-results hidden" id="avNoResults">해당하는 도서가 없습니다.</p>
       </div>
 
-      <!-- Download Buttons -->
-      <div class="download-bar hidden" id="downloadBar">
-        <a class="btn-download btn-download-results" id="btnDownloadResults" href="/api/download-results">
-          ⬇ 중복 결과 다운로드 (.xlsx)
-        </a>
-        <a class="btn-download btn-download-enriched hidden" id="btnDownloadEnriched" href="/api/download-enriched">
-          ⬇ 소장 목록 다운로드 (ISBN13 보완)
-        </a>
+      <!-- Downloads -->
+      <div class="download-bar" id="downloadBar">
+        <span class="download-label">다운로드</span>
+        <a class="btn-dl btn-dl-result" href="/api/download/results">📥 검사 결과 (.xlsx)</a>
+        <a class="btn-dl btn-dl-purchase hidden" id="dlPurchase" href="/api/download/enriched/purchase">📥 구입 예정 목록 (ISBN13 보완)</a>
+        <a class="btn-dl btn-dl-library hidden" id="dlLibrary" href="/api/download/enriched/library">📥 소장 목록 (ISBN13 보완)</a>
       </div>
     </section>
+  </div>
+
+  <!-- API status badge (bottom-right) -->
+  <div id="apiStatus" class="api-status">
+    <span id="apiStatusDot" class="api-status-dot"></span>
+    <span id="apiStatusText"></span>
   </div>
 
   <script src="script.js"></script>
