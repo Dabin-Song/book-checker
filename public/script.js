@@ -2,9 +2,60 @@
 const state = {
   purchase: null,
   library:  null,
-  results:  null,       // { duplicates, nonDuplicates }
-  dupFilter: null,      // active matchMethod filter
+  results:  null,
+  dupFilter: null,
+  apiKey: null,
 };
+
+// ── 알라딘 API (브라우저 직접 호출) ───────────────────────────────────────────
+// output=js 응답이 jQuery.fn({...}) 형태이므로 script 태그 주입으로 처리
+// jQuery.fn 충돌 방지를 위해 요청을 직렬화(queue)
+const _aladinQueue = (() => {
+  let tail = Promise.resolve();
+  return fn => { tail = tail.then(fn); return tail; };
+})();
+
+function fetchIsbn13ByTitle(title, apiKey) {
+  return _aladinQueue(() => new Promise(resolve => {
+    const prev = window.jQuery?.fn;
+    if (!window.jQuery) window.jQuery = {};
+
+    let done = false;
+    const finish = isbn13 => {
+      if (done) return;
+      done = true;
+      window.jQuery.fn = prev;
+      if (script.parentNode) script.remove();
+      clearTimeout(timer);
+      resolve(isbn13 || '');
+    };
+
+    window.jQuery.fn = data => finish(data?.item?.[0]?.isbn13 || '');
+    const timer = setTimeout(() => finish(''), 6000);
+
+    const params = new URLSearchParams({
+      ttbkey: apiKey, Query: title, QueryType: 'Title',
+      MaxResults: 1, start: 1, SearchTarget: 'Book',
+      output: 'js', Version: '20131101',
+    });
+    const script = document.createElement('script');
+    script.src = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?${params}`;
+    script.onerror = () => finish('');
+    document.head.appendChild(script);
+  }));
+}
+
+async function enrichBooks(books, onProgress) {
+  const apiKey = state.apiKey;
+  if (!apiKey || !books?.length) return [];
+  const results = [];
+  for (let i = 0; i < books.length; i++) {
+    const isbn13 = await fetchIsbn13ByTitle(books[i].title, apiKey);
+    results.push({ idx: books[i].idx, isbn13 });
+    onProgress(i + 1, books.length, results.filter(r => r.isbn13).length);
+  }
+  return results;
+}
 
 const $ = id => document.getElementById(id);
 const compareBtn = $('compareBtn');
@@ -12,11 +63,11 @@ const compareBtn = $('compareBtn');
 // ── API Status indicator ──────────────────────────────────────────────────────
 (async () => {
   const el   = $('apiStatus');
-  const dot  = $('apiStatusDot');
   const text = $('apiStatusText');
   try {
-    const { hasServerKey } = await (await fetch('/api/config')).json();
-    if (hasServerKey) {
+    const cfg = await (await fetch('/api/config')).json();
+    state.apiKey = cfg.apiKey || null;
+    if (cfg.apiKey) {
       el.classList.add('ok');
       text.textContent = '알라딘 API 연동됨';
     } else {
@@ -74,7 +125,7 @@ async function uploadFile(file, type) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
-    state[type] = { ...data, fileName: file.name };
+    state[type] = { ...data, fileName: file.name, booksWithoutIsbn13: data.booksWithoutIsbn13 || [] };
     dz.classList.add('hidden');
 
     $(`${type}FileName`).textContent = `📄 ${file.name}`;
@@ -114,17 +165,22 @@ async function startCompare() {
   Object.keys(progressEls).forEach(k => delete progressEls[k]);
 
   try {
+    // ── Step 1 & 2: 브라우저에서 알라딘 API 직접 호출하여 ISBN13 보강 ──
+    const enrichedPurchase = await enrichStep('purchase');
+    const enrichedLibrary  = await enrichStep('library');
+
+    // ── Step 3: 서버에 비교 요청 ────────────────────────────────────────
+    updateProgress({ step: 'comparing', message: '중복 검사 중...' });
     const res = await fetch('/api/compare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ enrichedPurchase, enrichedLibrary }),
     });
     if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
 
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
-
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -141,6 +197,16 @@ async function startCompare() {
     toast(err.message, 'error');
     compareBtn.disabled = false;
   }
+}
+
+async function enrichStep(type) {
+  const books = state[type]?.booksWithoutIsbn13 || [];
+  if (!books.length || !state.apiKey) return [];
+  const label = type === 'purchase' ? '구입 예정 목록' : '소장 목록';
+  updateProgress({ step: `enrich_${type}`, message: `${label} ISBN13 조회 중...`, current: 0, total: books.length });
+  return enrichBooks(books, (cur, tot, found) =>
+    updateProgress({ step: `enrich_${type}`, message: `${label} ISBN13 조회 중...`, current: cur, total: tot, enriched: found })
+  );
 }
 
 const progressEls = {};
