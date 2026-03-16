@@ -86,8 +86,10 @@ function parseExcel(filePath) {
 
 // ─── Aladin API ───────────────────────────────────────────────────────────────
 async function callAladin(params, apiKey) {
+  const referer = process.env.ALADIN_SERVICE_URL || 'http://localhost:3000';
   const res = await axios.get('http://www.aladin.co.kr/ttb/api/ItemSearch.aspx', {
     params: { ttbkey: apiKey, ...params, output: 'js', Version: '20131101' },
+    headers: { Referer: referer },
     timeout: 5000,
     httpAgent,
   });
