@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
+const XLSX = require('xlsx');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
@@ -61,30 +62,21 @@ function extractFields(row) {
 
 // ─── Excel parsing ───────────────────────────────────────────────────────────
 
-async function parseExcel(filePath) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
-  const sheet = workbook.worksheets[0];
+function parseExcel(filePath) {
+  const workbook = XLSX.readFile(filePath, { type: 'file', cellDates: true, raw: false });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
 
-  const rows = [];
-  let headers = [];
+  // sheet_to_json with header:1 gives array-of-arrays; with header:"A" gives key-based
+  // Use defval:'' to fill blanks, raw:false for string values
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
-  sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) {
-      headers = row.values.slice(1).map(v => (v != null ? String(v) : ''));
-    } else {
-      const obj = {};
-      row.values.slice(1).forEach((val, idx) => {
-        if (headers[idx]) {
-          obj[headers[idx]] = val != null ? val : '';
-        }
-      });
-      // Skip completely empty rows
-      if (Object.values(obj).some(v => String(v).trim() !== '')) {
-        rows.push(obj);
-      }
-    }
-  });
+  if (rawRows.length === 0) return { rows: [], headers: [] };
+
+  const headers = Object.keys(rawRows[0]);
+  const rows = rawRows.filter(row =>
+    Object.values(row).some(v => String(v).trim() !== '')
+  );
 
   return { rows, headers };
 }
@@ -210,7 +202,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: '잘못된 파일 유형입니다.' });
     }
 
-    const { rows, headers } = await parseExcel(req.file.path);
+    const { rows, headers } = parseExcel(req.file.path);
     const books = rows.map(extractFields);
 
     uploadedData[fileType] = { books, headers, originalRows: rows };
