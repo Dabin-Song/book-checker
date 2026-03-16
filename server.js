@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
@@ -259,9 +260,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Returns whether a server-side API key is configured
+app.get('/api/config', (req, res) => {
+  res.json({ hasServerKey: !!process.env.ALADIN_API_KEY });
+});
+
 // SSE endpoint for comparison with progress
 app.post('/api/compare', async (req, res) => {
-  const { apiKey } = req.body;
+  const apiKey = req.body.apiKey || process.env.ALADIN_API_KEY || '';
 
   if (!uploadedData.purchase || !uploadedData.library) {
     return res.status(400).json({ error: '두 파일 모두 업로드해주세요.' });

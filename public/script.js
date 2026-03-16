@@ -14,6 +14,16 @@ const libraryFile = $('libraryFile');
 const compareBtn = $('compareBtn');
 const apiKeyInput = $('apiKey');
 
+// ── API Key: check if server has key configured ────────────────────────────
+(async () => {
+  const res = await fetch('/api/config');
+  const { hasServerKey } = await res.json();
+  if (hasServerKey) {
+    $('apiKeyServerSet').classList.remove('hidden');
+    $('apiKeyInputWrap').classList.add('hidden');
+  }
+})();
+
 // ── API Key visibility toggle ───────────────────────────────────────────────
 $('toggleApiKey').addEventListener('click', () => {
   apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';

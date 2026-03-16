@@ -52,6 +52,18 @@ header .subtitle { color: #718096; margin-top: 0.4rem; }
   transition: border-color .2s;
 }
 .input-row input:focus { border-color: #4299e1; }
+.server-key-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background: #f0fff4;
+  color: #276749;
+  border: 1px solid #c6f6d5;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
 .btn-icon {
   background: none;
   border: 1px solid #e2e8f0;
