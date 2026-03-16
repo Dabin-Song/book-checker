@@ -302,16 +302,17 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 // API 연결 테스트
 app.get('/api/test-aladin', async (req, res) => {
   const apiKey = process.env.ALADIN_API_KEY || '';
-  if (!apiKey) return res.json({ ok: false, error: 'API 키가 설정되지 않았습니다' });
+  const referer = getServiceUrl();
+  if (!apiKey) return res.json({ ok: false, referer, error: 'API 키가 설정되지 않았습니다' });
   try {
     const data = await callAladin(
       { Query: '채식주의자', QueryType: 'Title', MaxResults: 1, start: 1, SearchTarget: 'Book' },
       apiKey,
     );
     const item = data?.item?.[0];
-    res.json({ ok: !!item, isbn13: item?.isbn13 || null, title: item?.title || null });
+    res.json({ ok: !!item, referer, isbn13: item?.isbn13 || null, title: item?.title || null });
   } catch (e) {
-    res.json({ ok: false, error: `${e.response?.status || ''} ${e.message}`.trim() });
+    res.json({ ok: false, referer, error: `${e.response?.status || ''} ${e.message}`.trim() });
   }
 });
 

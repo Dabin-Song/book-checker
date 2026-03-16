@@ -158,9 +158,12 @@ function updateProgress(data) {
   }
   const el  = progressEls[data.step];
   const pct = data.total ? Math.round((data.current / data.total) * 100) : 100;
+  const failNote = (data.failed > 0)
+    ? `<span style="color:#e53e3e;font-size:.8rem;margin-left:.5rem">⚠ ${data.failed}건 실패 (${data.lastError})</span>`
+    : '';
   el.innerHTML = `
     <span class="step-icon">${pct === 100 ? '✅' : '⏳'}</span>
-    <span class="step-msg">${data.message}</span>
+    <span class="step-msg">${data.message}</span>${failNote}
     ${data.total ? `
       <div class="progress-bar-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
       <span class="step-pct">${pct}%</span>` : ''}
